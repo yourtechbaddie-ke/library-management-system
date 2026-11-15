@@ -114,7 +114,7 @@ function setGenre(name){activeGenre=name;savedOnly=false;render();}
 async function load(){
  if(!API){genres=sampleGenres;books=sampleBooks;renderGenres();render();notice('Preview collection shown. Add your deployed API URL in web/config.js to load live library data.');return;}
  try{
-  const [bookRes,genreRes]=await Promise.all([fetch(API+'/books?limit=100'),fetch(API+'/genres')]);
+  const [bookRes,genreRes]=await Promise.all([fetch(API+'/api/books?limit=100'),fetch(API+'/api/genres')]);
   if(!bookRes.ok||!genreRes.ok)throw new Error('The library API returned an error. Check the API URL and server status.');
   const [bookData,genreData]=await Promise.all([bookRes.json(),genreRes.json()]);
   books=listFrom(bookData);genres=listFrom(genreData);apiReady=true;
@@ -139,7 +139,7 @@ $('bookForm').addEventListener('submit',async e=>{
  e.preventDefault();
  const payload={title:$('title').value.trim(),author:$('author').value.trim(),isbn:$('isbn').value.trim(),genreId:Number($('genreSelect').value),publishedYear:Number($('year').value),totalCopies:Number($('copies').value)};
  try{
-  const response=await fetch(API+'/books',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const response=await fetch(API+'/api/books',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
   if(response.status===401||response.status===403)throw new Error('Adding books requires an authenticated librarian account. Sign in through the API authentication flow first.');
   if(!response.ok){const body=await response.json().catch(()=>({}));throw new Error(body.message||'The book could not be saved.');}
   const created=await response.json();books.push(created);render();closeModal();$('bookForm').reset();notice('The new title has been added to the collection.');
