@@ -13,7 +13,7 @@ export class BooksService {
   async findAll(query: BookQuery) {
     const page = this.parsePositiveInteger(query.page, 1, 'page');
     const limit = Math.min(this.parsePositiveInteger(query.limit, 10, 'limit'), 100);
-    const genreId = query.genreId === undefined ? undefined : this.parsePositiveInteger(query.genreId, 0, 'genreId');
+    const genreId = query.genreId ? this.parsePositiveInteger(query.genreId, 1, 'genreId') : undefined;
 
     const where: Prisma.BookWhereInput = {
       ...(genreId !== undefined ? { genreId } : {}),
@@ -108,7 +108,7 @@ export class BooksService {
   private parsePositiveInteger(value: string | undefined, fallback: number, field: string) {
     if (value === undefined || value === '') return fallback;
     const parsed = Number(value);
-    if (!Number.isSafeInteger(parsed) || parsed < (field === 'genreId' ? 1 : 1)) {
+    if (!Number.isSafeInteger(parsed) || parsed < 1) {
       throw new BadRequestException(`${field} must be a positive integer.`);
     }
     return parsed;
