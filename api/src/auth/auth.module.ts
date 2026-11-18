@@ -1,7 +1,8 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { PrismaModule } from '../prisma/prisma.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './jwt.strategy';
@@ -9,20 +10,19 @@ import { RolesGuard } from './roles.guard';
 
 @Module({
   imports: [
-    ConfigModule,
-    PassportModule.register({ defaultStrategy: 'jwt' }),
+    PrismaModule,
+    PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
-        const secret = config.get<string>('JWT_SECRET') || process.env.JWT_SECRET;
-        if (!secret) throw new Error('JWT_SECRET must be configured.');
-        return { secret, signOptions: { expiresIn: '1h' } };
-      },
+      useFactory: (config: ConfigService) => ({
+        secret: config.getOrThrow<string>('JWT_SECRET'),
+        signOptions: { expiresIn: '1d' },
+      }),
     }),
   ],
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy, RolesGuard],
-  exports: [AuthService, JwtModule, PassportModule, RolesGuard],
+  exports: [AuthService],
 })
 export class AuthModule {}
