@@ -1,6 +1,6 @@
 import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { Prisma, Role } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
@@ -8,41 +8,33 @@ import { RegisterDto } from './dto/register.dto';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService, private readonly jwtService: JwtService) {}
+  constructor(private prisma: PrismaService, private jwt: JwtService) {}
 
   async register(dto: RegisterDto) {
-    const passwordHash = await bcrypt.hash(dto.password, 12);
+    const hashed = await bcrypt.hash(dto.password, 10);
     try {
-      const user = await this.prisma.user.create({
-        data: {
-          name: dto.name.trim(),
-          email: dto.email.toLowerCase().trim(),
-          passwordHash,
-          role: Role.PATRON,
-        },
-        select: { id: true, name: true, email: true, role: true, createdAt: true },
+      // role is never taken from the client: new accounts are MEMBERs
+      return await this.prisma.user.create({
+        data: { name: dto.name, email: dto.email, password: hashed },
+        select: { id: true, name: true, email: true, role: true },
       });
-      return this.issueToken(user);
-    } catch (error) {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-        throw new ConflictException('An account with this email already exists.');
+    } catch (e) {
+      if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === 'P2002') {
+        throw new ConflictException('Email already registered');
       }
-      throw error;
+      throw e;
     }
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({
-      where: { email: dto.email.toLowerCase().trim() },
-    });
-    if (!user?.passwordHash || !(await bcrypt.compare(dto.password, user.passwordHash))) {
-      throw new UnauthorizedException('Invalid email or password.');
-    }
-    return this.issueToken({ id: user.id, name: user.name, email: user.email, role: user.role });
-  }
+    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const valid = user && (await bcrypt.compare(dto.password, user.password));
+    if (!user || !valid) throw new UnauthorizedException('Invalid credentials');
 
-  private async issueToken(user: { id: number; name: string; email: string; role: Role }) {
-    const accessToken = await this.jwtService.signAsync({ sub: user.id, email: user.email, role: user.role });
-    return { access_token: accessToken, token_type: 'Bearer', user };
+    const payload = { sub: user.id, email: user.email, role: user.role };
+    return {
+      access_token: await this.jwt.signAsync(payload),
+      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+    };
   }
 }
