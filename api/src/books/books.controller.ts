@@ -1,26 +1,33 @@
 import {
-  Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Query, UseGuards,
+  Body, Controller, DefaultValuePipe, Delete, Get, Param, ParseIntPipe,
+  Patch, Post, Query, UseGuards,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
-import { CreateBookDto } from './dto/create-book.dto';
-import { UpdateBookDto } from './dto/update-book.dto';
-import { BooksService } from './books.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { Roles } from '../auth/roles.decorator';
 import { RolesGuard } from '../auth/roles.guard';
+import { BooksService } from './books.service';
+import { CreateBookDto } from './dto/create-book.dto';
+import { UpdateBookDto } from './dto/update-book.dto';
 
 @Controller('books')
 export class BooksController {
   constructor(private readonly booksService: BooksService) {}
 
+  // GET /books?genreId=1&search=tolkien&page=1&limit=10
   @Get()
   findAll(
-    @Query('genreId') genreId?: string,
+    @Query('genreId', new ParseIntPipe({ optional: true })) genreId?: number,
     @Query('search') search?: string,
-    @Query('page') page = '1',
-    @Query('limit') limit = '10',
+    @Query('page', new DefaultValuePipe(1), ParseIntPipe) page = 1,
+    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit = 10,
   ) {
-    return this.booksService.findAll({ genreId, search, page, limit });
+    return this.booksService.findAll({
+      genreId,
+      search: search?.trim() || undefined,
+      page: Math.max(page, 1),
+      limit: Math.min(Math.max(limit, 1), 100),
+    });
   }
 
   @Get(':id')
@@ -28,23 +35,23 @@ export class BooksController {
     return this.booksService.findOne(id);
   }
 
+  @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.LIBRARIAN)
-  @Post()
   create(@Body() dto: CreateBookDto) {
     return this.booksService.create(dto);
   }
 
+  @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.LIBRARIAN)
-  @Patch(':id')
   update(@Param('id', ParseIntPipe) id: number, @Body() dto: UpdateBookDto) {
     return this.booksService.update(id, dto);
   }
 
+  @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.LIBRARIAN)
-  @Delete(':id')
   remove(@Param('id', ParseIntPipe) id: number) {
     return this.booksService.remove(id);
   }
